@@ -97,14 +97,12 @@ function mockResult(): ScoringResult {
 }
 
 export async function scoreOnboardingVideo(
-  videoBuffer: Buffer,
-  mimeType: string
+  videoUrl: string
 ): Promise<ScoringResult> {
   if (process.env.MOCK_AI === "true") return mockResult();
 
   const client = new OpenRouter({ apiKey: process.env.OPENROUTER_API_KEY! });
   const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
-  const base64 = `data:${mimeType};base64,${videoBuffer.toString("base64")}`;
 
   const result = await client.chat.send({
     chatRequest: {
@@ -114,7 +112,7 @@ export async function scoreOnboardingVideo(
           role: "user",
           content: [
             { type: "text", text: SYSTEM_PROMPT },
-            { type: "video_url", videoUrl: { url: base64 } },
+            { type: "video_url", videoUrl: { url: videoUrl } },
           ],
         },
       ],

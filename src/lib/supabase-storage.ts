@@ -9,22 +9,19 @@ function client() {
   return createClient(url, key);
 }
 
-export async function uploadOnboardingVideo(
+export async function createSignedUploadUrl(
   userId: string,
-  buffer: Buffer,
-  mimeType: string,
-  fileName: string
-): Promise<string> {
+  ext: string
+): Promise<{ signedUrl: string; path: string; publicUrl: string }> {
   const supabase = client();
-  const ext = fileName.split(".").pop() || "mp4";
   const path = `onboarding/${userId}/${Date.now()}.${ext}`;
 
-  const { error } = await supabase.storage
+  const { data, error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, buffer, { contentType: mimeType, upsert: true });
+    .createSignedUploadUrl(path);
 
-  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+  if (error || !data) throw new Error(`Failed to create upload URL: ${error?.message}`);
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return { signedUrl: data.signedUrl, path, publicUrl: pub.publicUrl };
 }

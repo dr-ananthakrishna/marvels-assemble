@@ -8,7 +8,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("instructions");
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<{ approved: boolean; score: number; reason: string } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [result, setResult] = useState<{ approved: boolean; needsHumanReview?: boolean; score: number; reason: string } | null>(null);
   const [error, setError] = useState("");
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,18 +36,41 @@ export default function OnboardingPage() {
     }
     setStage("processing");
     setError("");
-
-    const form = new FormData();
-    form.append("video", file);
+    setUploadProgress(0);
 
     try {
-      const res = await fetch("/api/onboarding/upload", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error); setStage("upload"); return; }
-      setResult(data.scoring);
+      // Step 1: Get a signed upload URL from our server
+      const ext = file.name.split(".").pop() || "mp4";
+      const urlRes = await fetch(`/api/onboarding/upload-url?ext=${ext}`);
+      const urlData = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlData.error);
+
+      // Step 2: Upload directly to Supabase (bypasses Vercel size limits)
+      const xhr = new XMLHttpRequest();
+      await new Promise<void>((resolve, reject) => {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error("Upload network error"));
+        xhr.open("PUT", urlData.signedUrl);
+        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+        xhr.send(file);
+      });
+
+      // Step 3: Send just the public URL to our API for AI scoring
+      const scoreRes = await fetch("/api/onboarding/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: urlData.publicUrl }),
+      });
+      const scoreData = await scoreRes.json();
+      if (!scoreRes.ok) throw new Error(scoreData.error);
+
+      setResult(scoreData.scoring);
       setStage("result");
-    } catch {
-      setError("Upload failed. Try again.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed. Try again.");
       setStage("upload");
     }
   }
@@ -140,24 +164,39 @@ export default function OnboardingPage() {
           {stage === "processing" && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 text-center space-y-4">
               <div className="text-5xl animate-pulse">🤖</div>
-              <h2 className="text-xl font-bold text-gray-900">AI is reviewing your video...</h2>
-              <p className="text-gray-500 text-sm">This takes 20–40 seconds. Please don't close this tab.</p>
-              <div className="flex justify-center gap-1 pt-2">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
+              {uploadProgress < 100 ? (
+                <>
+                  <h2 className="text-xl font-bold text-gray-900">Uploading your video...</h2>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-indigo-500 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <p className="text-gray-500 text-sm">{uploadProgress}% — please don't close this tab</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold text-gray-900">AI is reviewing your video...</h2>
+                  <p className="text-gray-500 text-sm">This takes 20–40 seconds. Please don't close this tab.</p>
+                  <div className="flex justify-center gap-1 pt-2">
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {stage === "result" && result && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 space-y-6">
-              <div className={`text-center p-6 rounded-xl ${result.approved ? "bg-green-50" : "bg-red-50"}`}>
-                <p className="text-4xl mb-2">{result.approved ? "🎉" : "😔"}</p>
+              <div className={`text-center p-6 rounded-xl ${result.approved ? "bg-green-50" : result.needsHumanReview ? "bg-yellow-50" : "bg-red-50"}`}>
+                <p className="text-4xl mb-2">{result.approved ? "🎉" : result.needsHumanReview ? "⏳" : "😔"}</p>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {result.approved ? "You're in! Welcome, Marvel!" : "Not this time"}
+                  {result.approved ? "You're in! Welcome, Marvel!" : result.needsHumanReview ? "Under review" : "Not this time"}
                 </h2>
                 <p className="text-3xl font-bold mt-2 text-gray-700">Score: {result.score}/100</p>
+                {result.needsHumanReview && !result.approved && (
+                  <p className="text-sm text-yellow-700 mt-2">Your application is being reviewed by our team. We'll notify you soon.</p>
+                )}
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-1">AI feedback</p>
