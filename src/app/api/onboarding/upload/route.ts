@@ -31,14 +31,14 @@ export async function POST(req: NextRequest) {
       create: {
         userId: session.userId,
         videoUrl: `uploaded:${file.name}`,
-        status: result.approved ? "APPROVED" : "REJECTED",
+        status: result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED",
         score: result.score,
         breakdown: result.breakdown,
         reason: result.reason,
       },
       update: {
         videoUrl: `uploaded:${file.name}`,
-        status: result.approved ? "APPROVED" : "REJECTED",
+        status: result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED",
         score: result.score,
         breakdown: result.breakdown,
         reason: result.reason,

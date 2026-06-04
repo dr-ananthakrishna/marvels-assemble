@@ -6,45 +6,90 @@ import { OpenRouter } from "@openrouter/sdk";
 
 export interface ScoringResult {
   approved: boolean;
+  needsHumanReview: boolean;
   score: number; // 0–100
   breakdown: {
-    energy: number;        // 0–25
-    campusReach: number;   // 0–25
-    motivation: number;    // 0–25
-    communication: number; // 0–25
+    communication: number;    // 0–25
+    confidence: number;       // 0–25
+    leadership: number;       // 0–10
+    academics: number;        // 0–10
+    extracurriculars: number; // 0–10
+    loveForMarrow: number;    // 0–10
+    entrepreneurial: number;  // 0–5
+    socialMedia: number;      // 0–5
   };
   reason: string;
 }
 
-const SYSTEM_PROMPT = `You are screening college ambassador applicants called "Marvels" for a student platform.
-Watch the uploaded video and score the applicant on these 4 criteria (each 0–25):
+const SYSTEM_PROMPT = `You are screening applicants for the "Marvel Ambassador" programme run by Marrow (a medical education platform).
 
-1. Energy & personality on camera — Are they confident, engaging, enthusiastic?
-2. Campus reach potential — Do they mention specific groups, networks, or strategies?
-3. Motivation for the Marvel role — Is their reason genuine and specific?
-4. Communication clarity — Are they clear, articulate, easy to follow?
+Watch the video and score the candidate using this rubric. Total score is out of 100.
 
-Total is out of 100. Approve if total >= 60.
+── FIXED CRITERIA (always scored) ──────────────────────────────────────────
+1. Communication (25 pts max)
+   Clear, structured, articulate — can they hold attention?
+   Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
+
+2. Confidence (25 pts max)
+   Eye contact, steady voice, no excessive hesitation.
+   Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
+
+── DESIRABLE SIGNALS (additive — not mentioning one does NOT penalise) ─────
+For each signal: clearly mentioned with detail → 9–10 pts | mentioned → 7–8 | vaguely implied → 5–6 | not mentioned → 5 (neutral)
+
+3. Leadership (10 pts max) — class rep, club officer, team captain, event organiser
+4. Academics (10 pts max) — topper, rank holder, gold medal, scholarship
+5. Extracurriculars (10 pts max) — sports, arts, volunteering, cultural activities
+6. Love for Marrow (10 pts max) — uses the app, names specific features, expresses genuine love
+7. Entrepreneurial mindset (5 pts max) — startup interest, built something, self-starter attitude
+8. Social media presence (5 pts max) — follower count, content creator, runs a community
+
+── DECISION ─────────────────────────────────────────────────────────────────
+Score > 80  → approved: true,  needsHumanReview: false
+Score ≤ 80  → approved: false, needsHumanReview: true  (admin will review manually)
 
 Respond ONLY as valid JSON with no markdown or explanation:
 {
-  "approved": true,
-  "score": 72,
-  "breakdown": { "energy": 20, "campusReach": 18, "motivation": 19, "communication": 15 },
-  "reason": "Strong campus network mentioned, good energy. Motivation could be more specific."
+  "approved": false,
+  "needsHumanReview": true,
+  "score": 74,
+  "breakdown": {
+    "communication": 20,
+    "confidence": 19,
+    "leadership": 8,
+    "academics": 5,
+    "extracurriculars": 7,
+    "loveForMarrow": 8,
+    "entrepreneurial": 5,
+    "socialMedia": 5
+  },
+  "reason": "Good communicator with clear leadership experience. Marrow usage mentioned but could be more specific. Score below 80 — flagged for human review."
 }`;
 
 function mockResult(): ScoringResult {
   const score = Math.floor(Math.random() * 61) + 30; // 30–90
-  const approved = score >= 60;
-  const q = Math.floor(score / 4);
+  const approved = score > 80;
+  const needsHumanReview = !approved;
+  const comm = Math.round(score * 0.25);
+  const conf = Math.round(score * 0.25);
+  const rem = score - comm - conf;
   return {
     approved,
+    needsHumanReview,
     score,
-    breakdown: { energy: q, campusReach: q, motivation: q, communication: score - q * 3 },
+    breakdown: {
+      communication: comm,
+      confidence: conf,
+      leadership: Math.round(rem * 0.286),
+      academics: Math.round(rem * 0.286),
+      extracurriculars: Math.round(rem * 0.143),
+      loveForMarrow: Math.round(rem * 0.143),
+      entrepreneurial: Math.round(rem * 0.071),
+      socialMedia: rem - Math.round(rem * 0.929),
+    },
     reason: approved
-      ? `[MOCK] Strong application. Score ${score}/100 — approved.`
-      : `[MOCK] Below threshold. Score ${score}/100 — needs improvement.`,
+      ? `[MOCK] Strong application. Score ${score}/100 — auto-approved.`
+      : `[MOCK] Score ${score}/100 — flagged for human review.`,
   };
 }
 
@@ -78,7 +123,6 @@ export async function scoreOnboardingVideo(
   const text = (result as { choices: Array<{ message: { content: string } }> })
     .choices[0].message.content.trim();
 
-  // Strip markdown code fences if model wraps the JSON
   const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   return JSON.parse(json) as ScoringResult;
 }
