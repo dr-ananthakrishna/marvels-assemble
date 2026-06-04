@@ -2,7 +2,6 @@
  * AI scoring via OpenRouter — model configurable via OPENROUTER_MODEL env var
  */
 
-import { OpenRouter } from "@openrouter/sdk";
 
 export interface ScoringResult {
   approved: boolean;
@@ -101,29 +100,38 @@ export async function scoreOnboardingVideo(
 ): Promise<ScoringResult> {
   if (process.env.MOCK_AI === "true") return mockResult();
 
-  const client = new OpenRouter({ apiKey: process.env.OPENROUTER_API_KEY! });
   const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
-  const result = await client.chat.send({
-    chatRequest: {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    },
+    body: JSON.stringify({
       model,
+      stream: false,
+      max_tokens: 1024,
       messages: [
         {
           role: "user",
           content: [
             { type: "text", text: SYSTEM_PROMPT },
-            { type: "video_url", videoUrl: { url: videoUrl } },
+            { type: "video_url", video_url: { url: videoUrl } },
           ],
         },
       ],
-      stream: false,
-    },
-    httpReferer: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    }),
   });
 
-  const text = (result as { choices: Array<{ message: { content: string } }> })
-    .choices[0].message.content.trim();
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter ${res.status}: ${err}`);
+  }
 
+  const data = await res.json();
+  const text = (data.choices[0].message.content as string).trim();
   const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   return JSON.parse(json) as ScoringResult;
 }

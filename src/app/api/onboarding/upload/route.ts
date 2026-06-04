@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { scoreOnboardingVideo } from "@/lib/ai";
 
-export const maxDuration = 60;
+export const maxDuration = 300; // Vercel Pro: up to 300s; Hobby: capped at 60s
 
 export async function POST(req: NextRequest) {
   try {
