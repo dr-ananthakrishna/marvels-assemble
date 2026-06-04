@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  college   String
+  phone     String?
+  role        Role     @default(MARVEL)
+  instagramId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  onboarding  Onboarding?
+  submissions Submission[]
+}
+
+model Onboarding {
+  id        String            @id @default(cuid())
+  userId    String            @unique
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoUrl  String?
+  status    OnboardingStatus  @default(PENDING)
+  score     Float?
+  breakdown Json?
+  reason    String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activityType ActivityType
+  proofUrl     String?
+  proofNote    String?
+  metrics      Json?
+  status       SubmissionStatus @default(PENDING)
+  autoChecked  Boolean          @default(false)
+  adminNote    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+enum Role {
+  MARVEL
+  ADMIN
+}
+
+enum OnboardingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ActivityType {
+  REEL
+  COMMUNITY
+  QUIZ
+  REFERRAL
+  DOUBT_SESSION
+  CLASSROOM_SESSION
+  COLLEGE_EVENT
+  REPORT_PIRACY
+  CASE_CLUB
+  NEW_INITIATIVE
+}
