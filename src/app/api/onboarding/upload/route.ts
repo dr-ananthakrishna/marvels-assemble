@@ -7,19 +7,24 @@ export const maxDuration = 300; // Vercel Pro: up to 300s; Hobby: capped at 60s
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const { videoUrl } = await req.json();
+    const { videoUrl, userId } = await req.json();
     if (!videoUrl) return NextResponse.json({ error: "videoUrl required" }, { status: 400 });
+
+    // Try to get session first, fall back to userId parameter
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const session = await getSession();
+      if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      finalUserId = session.userId;
+    }
 
     const result = await scoreOnboardingVideo(videoUrl);
     const status = result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED";
 
     const onboarding = await prisma.onboarding.upsert({
-      where: { userId: session.userId },
+      where: { userId: finalUserId },
       create: {
-        userId: session.userId,
+        userId: finalUserId,
         videoUrl,
         status,
         score: result.score,

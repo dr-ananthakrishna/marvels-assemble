@@ -7,16 +7,22 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  college   String
-  phone     String?
-  role        Role     @default(MARVEL)
-  instagramId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  college       String
+  phone         String?
+  role          Role     @default(MARVEL)
+  instagramId   String?
+  dob           DateTime? @db.Date
+  state         String?
+  admissionYear String?
+  referredBy    String?
+  about         String?
+  interests     Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   onboarding  Onboarding?
   submissions Submission[]
@@ -26,6 +32,7 @@ model Onboarding {
   id        String            @id @default(cuid())
   userId    String            @unique
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idCardUrl  String?
   videoUrl   String?
   status     OnboardingStatus  @default(PENDING)
   score      Float?

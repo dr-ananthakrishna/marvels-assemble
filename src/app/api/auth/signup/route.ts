@@ -4,7 +4,19 @@ import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name, college, phone } = await req.json();
+    const {
+      email,
+      password,
+      name,
+      college,
+      phone,
+      state,
+      admissionYear,
+      dob,
+      referredBy,
+      about,
+      interests,
+    } = await req.json();
 
     if (!email || !password || !name || !college) {
       return NextResponse.json({ error: "All fields required" }, { status: 400 });
@@ -20,11 +32,28 @@ export async function POST(req: NextRequest) {
 
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
-      data: { email, password: hashed, name, college, phone, role: "MARVEL" },
+      data: {
+        email,
+        password: hashed,
+        name,
+        college,
+        phone,
+        role: "MARVEL",
+        dob: dob ? new Date(dob) : null,
+        state: state || null,
+        admissionYear: admissionYear || null,
+        referredBy: referredBy || null,
+        about: about || null,
+        interests: interests || null,
+      },
     });
 
-    // Create empty onboarding record
-    await prisma.onboarding.create({ data: { userId: user.id } });
+    // Create onboarding record
+    await prisma.onboarding.create({
+      data: {
+        userId: user.id,
+      },
+    });
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
     const cookie = setAuthCookie(token);
@@ -35,7 +64,8 @@ export async function POST(req: NextRequest) {
     res.cookies.set(cookie);
     return res;
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("Signup error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
