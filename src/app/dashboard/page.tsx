@@ -252,7 +252,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {submissions.map(s => {
                 const isOpen = expandedId === s.id;
-                const reelMetrics = s.activityType === "REEL" && s.metrics ? s.metrics as ReelMeta : null;
+                const reelMetrics = s.activityType === "REEL" && s.metrics ? s.metrics as unknown as ReelMeta : null;
                 return (
                   <div key={s.id} className="border border-gray-200 rounded-xl overflow-hidden">
                     {/* Header row — always visible */}
