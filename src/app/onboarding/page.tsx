@@ -30,8 +30,8 @@ export default function OnboardingPage() {
 
   async function handleUpload() {
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) {
-      setError("Video must be under 50MB. Please trim or compress your video.");
+    if (file.size > 14 * 1024 * 1024) {
+      setError("Video must be under 14MB (Gemini's inline limit). Compress with HandBrake or trim to under 2 minutes.");
       return;
     }
     setStage("processing");
@@ -116,7 +116,7 @@ export default function OnboardingPage() {
                 ))}
               </ol>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-amber-800 text-xs">📹 Keep your video under <strong>2 minutes</strong> and under <strong>50MB</strong> for best results. MP4 or MOV preferred. Compress using <a href="https://www.handbrake.fr" target="_blank" rel="noreferrer" className="underline">HandBrake</a> if needed.</p>
+                <p className="text-amber-800 text-xs">📹 Keep your video under <strong>2 minutes</strong> and under <strong>14MB</strong>. MP4 preferred. Compress with <a href="https://www.handbrake.fr" target="_blank" rel="noreferrer" className="underline">HandBrake</a> if needed.</p>
               </div>
               <button
                 onClick={() => setStage("upload")}
@@ -143,7 +143,7 @@ export default function OnboardingPage() {
                   <div className="space-y-2">
                     <p className="text-3xl">📹</p>
                     <p className="text-gray-600 text-sm font-medium">Click to choose video</p>
-                    <p className="text-gray-400 text-xs">MP4, MOV — max 50MB</p>
+                    <p className="text-gray-400 text-xs">MP4, MOV — max 14MB</p>
                   </div>
                 )}
               </div>

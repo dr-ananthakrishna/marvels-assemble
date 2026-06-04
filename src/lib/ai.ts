@@ -131,6 +131,14 @@ export async function scoreOnboardingVideo(
   }
 
   const data = await res.json();
+
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${JSON.stringify(data.error)}`);
+  }
+  if (!data.choices?.length) {
+    throw new Error(`Unexpected OpenRouter response: ${JSON.stringify(data)}`);
+  }
+
   const text = (data.choices[0].message.content as string).trim();
   const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   return JSON.parse(json) as ScoringResult;
