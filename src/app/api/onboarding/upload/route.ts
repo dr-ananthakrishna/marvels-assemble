@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { scoreOnboardingVideo } from "@/lib/ai";
+import { uploadOnboardingVideo } from "@/lib/supabase-storage";
 
-export const maxDuration = 60; // seconds
+export const maxDuration = 60;
+
+const MAX_BYTES = 500 * 1024 * 1024; // 500MB
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,40 +17,50 @@ export async function POST(req: NextRequest) {
     const file = formData.get("video") as File;
     if (!file) return NextResponse.json({ error: "No video file provided" }, { status: 400 });
 
-    // Limit 100MB
-    if (file.size > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: "Video must be under 100MB" }, { status: 400 });
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: "Video must be under 500MB" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "video/mp4";
 
+    // Upload to Supabase Storage (skip gracefully if not configured)
+    let videoUrl: string | null = null;
+    try {
+      videoUrl = await uploadOnboardingVideo(session.userId, buffer, mimeType, file.name);
+    } catch (e) {
+      console.warn("Video storage skipped:", (e as Error).message);
+    }
+
     // Score with AI
     const result = await scoreOnboardingVideo(buffer, mimeType);
+    const status = result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED";
 
-    // Update onboarding record
     const onboarding = await prisma.onboarding.upsert({
       where: { userId: session.userId },
       create: {
         userId: session.userId,
-        videoUrl: `uploaded:${file.name}`,
-        status: result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED",
+        videoUrl,
+        status,
         score: result.score,
         breakdown: result.breakdown,
         reason: result.reason,
+        transcript: result.transcript,
       },
       update: {
-        videoUrl: `uploaded:${file.name}`,
-        status: result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED",
+        videoUrl,
+        status,
         score: result.score,
         breakdown: result.breakdown,
         reason: result.reason,
+        transcript: result.transcript,
       },
     });
 
     return NextResponse.json({ onboarding, scoring: result });
   } catch (err) {
-    console.error("Onboarding upload error:", err);
-    return NextResponse.json({ error: "Failed to process video" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Failed to process video";
+    console.error("Onboarding upload error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

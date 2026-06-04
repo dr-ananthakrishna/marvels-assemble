@@ -24,11 +24,15 @@ export default function OnboardingPage() {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   async function handleUpload() {
     if (!file) return;
+    if (file.size > 500 * 1024 * 1024) {
+      setError("Video must be under 500MB. Please trim or compress your video.");
+      return;
+    }
     setStage("processing");
     setError("");
 
@@ -88,7 +92,7 @@ export default function OnboardingPage() {
                 ))}
               </ol>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-amber-800 text-xs">📹 Record on any device. Keep it under 100MB. MP4 or MOV preferred. Our AI will score your video instantly.</p>
+                <p className="text-amber-800 text-xs">📹 Record on any device. Keep it under 500MB. MP4 or MOV preferred. Our AI will score your video instantly.</p>
               </div>
               <button
                 onClick={() => setStage("upload")}
@@ -115,7 +119,7 @@ export default function OnboardingPage() {
                   <div className="space-y-2">
                     <p className="text-3xl">📹</p>
                     <p className="text-gray-600 text-sm font-medium">Click to choose video</p>
-                    <p className="text-gray-400 text-xs">MP4, MOV — max 100MB</p>
+                    <p className="text-gray-400 text-xs">MP4, MOV — max 500MB</p>
                   </div>
                 )}
               </div>

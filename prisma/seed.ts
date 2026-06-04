@@ -151,38 +151,33 @@ async function main() {
     });
     createdMarvels.push({ email: m.email, id: user.id });
 
-    if (m.approved === true) {
+    if (m.approved !== null) {
       const s = m.score!;
+      const status = m.approved === true ? (s > 80 ? "APPROVED" : "PENDING") : "REJECTED";
+      const breakdown = {
+        communication:    Math.round(s * 0.25),
+        confidence:       Math.round(s * 0.25),
+        leadership:       Math.round(s * 0.10),
+        academics:        Math.round(s * 0.10),
+        extracurriculars: Math.round(s * 0.10),
+        loveForMarrow:    Math.round(s * 0.10),
+        entrepreneurial:  Math.round(s * 0.05),
+        socialMedia:      s - Math.round(s * 0.95),
+      };
+      const reason = status === "APPROVED"
+        ? `Strong application. Score ${s}/100 — auto-approved.`
+        : status === "PENDING"
+        ? `Score ${s}/100 — flagged for human review (threshold >80).`
+        : `Score ${s}/100. Communication and confidence need improvement.`;
       await prisma.onboarding.create({
         data: {
           userId: user.id,
-          videoUrl: `uploaded:sample_${user.id}.mp4`,
-          status: "APPROVED",
+          videoUrl: null,
+          status,
           score: s,
-          breakdown: {
-            energy:        Math.round(s * 0.28),
-            campusReach:   Math.round(s * 0.24),
-            motivation:    Math.round(s * 0.25),
-            communication: s - Math.round(s * 0.28) - Math.round(s * 0.24) - Math.round(s * 0.25),
-          },
-          reason: `Good energy and campus presence. Score: ${s}/100.`,
-        },
-      });
-    } else if (m.approved === false) {
-      const s = m.score!;
-      await prisma.onboarding.create({
-        data: {
-          userId: user.id,
-          videoUrl: `uploaded:sample_${user.id}.mp4`,
-          status: "REJECTED",
-          score: s,
-          breakdown: {
-            energy:        Math.round(s * 0.28),
-            campusReach:   Math.round(s * 0.24),
-            motivation:    Math.round(s * 0.25),
-            communication: s - Math.round(s * 0.28) - Math.round(s * 0.24) - Math.round(s * 0.25),
-          },
-          reason: "Score below 60. Motivation and campus reach need more specifics.",
+          breakdown,
+          reason,
+          transcript: null,
         },
       });
     } else {
@@ -206,6 +201,7 @@ async function main() {
           activityType: sub.activityType,
           proofUrl: sub.proofUrl,
           proofNote: sub.proofNote ?? null,
+          videoUrl: null,
           status: sub.status,
           autoChecked: sub.autoChecked,
           metrics: sub.metrics ?? undefined,

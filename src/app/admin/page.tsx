@@ -24,6 +24,8 @@ type Onboarding = {
   status: string;
   score: number;
   reason: string;
+  transcript?: string;
+  videoUrl?: string;
   breakdown?: Record<string, number>;
 };
 
@@ -88,7 +90,7 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <h1 className="text-lg font-bold text-indigo-700">⚡ Admin — Marvels Assemble</h1>
-        <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+        <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }}
           className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
       </nav>
 
@@ -157,6 +159,19 @@ export default function AdminPage() {
 
                   {selected.onboarding && (
                     <>
+                      {/* Video player */}
+                      {selected.onboarding.videoUrl && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Application video</p>
+                          <video
+                            src={selected.onboarding.videoUrl}
+                            controls
+                            className="w-full rounded-xl bg-black"
+                            style={{ maxHeight: "300px" }}
+                          />
+                        </div>
+                      )}
+
                       {/* Score + reason */}
                       <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                         <div className="flex justify-between items-center">
@@ -165,6 +180,16 @@ export default function AdminPage() {
                         </div>
                         <p className="text-xs text-gray-500">{selected.onboarding.reason}</p>
                       </div>
+
+                      {/* Transcript */}
+                      {selected.onboarding.transcript && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Transcript</p>
+                          <div className="bg-gray-50 rounded-xl p-4 max-h-40 overflow-y-auto">
+                            <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{selected.onboarding.transcript}</p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Breakdown */}
                       {selected.onboarding.breakdown && (

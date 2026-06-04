@@ -26,11 +26,12 @@ model Onboarding {
   id        String            @id @default(cuid())
   userId    String            @unique
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoUrl  String?
-  status    OnboardingStatus  @default(PENDING)
-  score     Float?
-  breakdown Json?
-  reason    String?
+  videoUrl   String?
+  status     OnboardingStatus  @default(PENDING)
+  score      Float?
+  breakdown  Json?
+  reason     String?
+  transcript String?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 }
@@ -42,6 +43,7 @@ model Submission {
   activityType ActivityType
   proofUrl     String?
   proofNote    String?
+  videoUrl     String?
   metrics      Json?
   status       SubmissionStatus @default(PENDING)
   autoChecked  Boolean          @default(false)

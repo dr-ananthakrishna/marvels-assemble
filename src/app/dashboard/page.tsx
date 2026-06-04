@@ -123,7 +123,7 @@ export default function DashboardPage() {
         <h1 className="text-lg font-bold text-indigo-700">⚡ Marvels Assemble</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">{user?.name} · {user?.college}</span>
-          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }}
             className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
         </div>
       </nav>

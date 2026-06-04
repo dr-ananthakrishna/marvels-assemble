@@ -19,6 +19,7 @@ export interface ScoringResult {
     socialMedia: number;      // 0–5
   };
   reason: string;
+  transcript: string;
 }
 
 const SYSTEM_PROMPT = `You are screening applicants for the "Marvel Ambassador" programme run by Marrow (a medical education platform).
@@ -63,7 +64,8 @@ Respond ONLY as valid JSON with no markdown or explanation:
     "entrepreneurial": 5,
     "socialMedia": 5
   },
-  "reason": "Good communicator with clear leadership experience. Marrow usage mentioned but could be more specific. Score below 80 — flagged for human review."
+  "reason": "Good communicator with clear leadership experience. Marrow usage mentioned but could be more specific. Score below 80 — flagged for human review.",
+  "transcript": "Full verbatim transcript of everything the candidate said in the video."
 }`;
 
 function mockResult(): ScoringResult {
@@ -90,6 +92,7 @@ function mockResult(): ScoringResult {
     reason: approved
       ? `[MOCK] Strong application. Score ${score}/100 — auto-approved.`
       : `[MOCK] Score ${score}/100 — flagged for human review.`,
+    transcript: "[MOCK] Transcript not available in mock mode.",
   };
 }
 
