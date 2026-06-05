@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Lock, Play, CheckCircle } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 
@@ -55,6 +56,7 @@ const MASTERCLASSES = [
 ];
 
 export default function MasterclassesPage() {
+  const router = useRouter();
   const [currentPoints, setCurrentPoints] = useState(0);
 
   useEffect(() => {
@@ -62,10 +64,19 @@ export default function MasterclassesPage() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
+        if (!d.user) {
+          router.push("/login");
+          return;
+        }
+        // Redirect to application-success if onboarding is still pending
+        if (d.user.onboarding?.status === "PENDING") {
+          router.push("/application-success");
+          return;
+        }
         if (d.user?.points !== undefined) setCurrentPoints(d.user.points);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => router.push("/login"));
+  }, [router]);
 
   return (
     <AppLayout>

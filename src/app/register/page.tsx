@@ -56,7 +56,7 @@ export default function RegisterPage() {
       formData.admissionYear !== "" &&
       formData.state !== "" &&
       formData.collegeIdFile !== null &&
-      wordCount >= 200 &&
+      wordCount >= 5 &&
       wordCount <= 500;
     if (formData.referredBy === "Other") {
       return base && formData.referredByOther.trim() !== "";
@@ -89,7 +89,7 @@ export default function RegisterPage() {
       case "admissionYear": return formData.admissionYear === "";
       case "state": return formData.state === "";
       case "collegeIdFile": return formData.collegeIdFile === null;
-      case "about": return wordCount < 200 || wordCount > 500;
+      case "about": return wordCount < 5 || wordCount > 500;
       default: return false;
     }
   };
@@ -517,7 +517,7 @@ export default function RegisterPage() {
 
                 <div className="md:col-span-2">
                   <label className="block mb-2 text-sm font-medium">
-                    Brief about yourself (200–500 words)<Req />
+                    Brief about yourself (5–500 words)<Req />
                   </label>
                   <textarea
                     value={formData.about}
@@ -527,7 +527,7 @@ export default function RegisterPage() {
                     placeholder="Tell us about yourself, your interests, and what drives you..."
                   />
                   <div className={`text-xs mt-2 ${fieldErr("about") ? "text-red-500" : "text-[#666666]"}`}>
-                    {wordCount} / 500 words {fieldErr("about") && wordCount < 200 ? `(minimum 200 words)` : ""}
+                    {wordCount} / 500 words {fieldErr("about") && wordCount < 5 ? `(minimum 5 words)` : ""}
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Shield,
   Star,
@@ -44,16 +45,26 @@ const BADGE_SECTIONS = [
 ];
 
 export default function BadgesPage() {
+  const router = useRouter();
   const [userPoints, setUserPoints] = useState(0);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
+        if (!d.user) {
+          router.push("/login");
+          return;
+        }
+        // Redirect to application-success if onboarding is still pending
+        if (d.user.onboarding?.status === "PENDING") {
+          router.push("/application-success");
+          return;
+        }
         if (d.user?.points) setUserPoints(d.user.points);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => router.push("/login"));
+  }, [router]);
 
   return (
     <AppLayout>

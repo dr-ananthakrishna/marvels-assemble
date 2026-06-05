@@ -34,8 +34,15 @@ Watch the video and score the candidate using this rubric. Total score is out of
    Eye contact, steady voice, no excessive hesitation.
    Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
 
-── DESIRABLE SIGNALS (additive — not mentioning one does NOT penalise) ─────
-For each signal: clearly mentioned with detail → 9–10 pts | mentioned → 7–8 | vaguely implied → 5–6 | not mentioned → 5 (neutral)
+── DESIRABLE SIGNALS (earned only — 0 if not mentioned) ────────────────────
+These signals are only scored if the candidate explicitly mentions them.
+If a signal is absent from the transcript, assign exactly 0. Do not infer or assume.
+
+For each signal that IS mentioned:
+  clearly mentioned with detail → 9–10 pts
+  mentioned                    → 7–8 pts
+  vaguely implied              → 5–6 pts
+  not mentioned                → 0 pts (no score awarded)
 
 3. Leadership (10 pts max) — class rep, club officer, team captain, event organiser
 4. Academics (10 pts max) — topper, rank holder, gold medal, scholarship
@@ -45,31 +52,31 @@ For each signal: clearly mentioned with detail → 9–10 pts | mentioned → 7�
 8. Social media presence (5 pts max) — follower count, content creator, runs a community
 
 ── DECISION ─────────────────────────────────────────────────────────────────
-Score > 80  → approved: true,  needsHumanReview: false
-Score ≤ 80  → approved: false, needsHumanReview: true  (admin will review manually)
+Score > 30  → approved: true,  needsHumanReview: false
+Score ≤ 30  → approved: false, needsHumanReview: true  (admin will review manually)
 
 Respond ONLY as valid JSON with no markdown or explanation:
 {
   "approved": false,
   "needsHumanReview": true,
-  "score": 74,
+  "score": 61,
   "breakdown": {
     "communication": 20,
     "confidence": 19,
     "leadership": 8,
-    "academics": 5,
+    "academics": 0,
     "extracurriculars": 7,
-    "loveForMarrow": 8,
-    "entrepreneurial": 5,
-    "socialMedia": 5
+    "loveForMarrow": 7,
+    "entrepreneurial": 0,
+    "socialMedia": 0
   },
-  "reason": "Good communicator with clear leadership experience. Marrow usage mentioned but could be more specific. Score below 80 — flagged for human review.",
+  "reason": "Good communicator with clear leadership experience and extracurricular involvement. Academics, entrepreneurial mindset, and social media not mentioned. Score below 80 — flagged for human review.",
   "transcript": "Full verbatim transcript of everything the candidate said in the video."
 }`;
 
 function mockResult(): ScoringResult {
   const score = Math.floor(Math.random() * 61) + 30; // 30–90
-  const approved = score > 80;
+  const approved = score > 30;
   const needsHumanReview = !approved;
   const comm = Math.round(score * 0.25);
   const conf = Math.round(score * 0.25);

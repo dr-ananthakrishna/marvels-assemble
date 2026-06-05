@@ -57,10 +57,7 @@ export async function verifyReel(reelUrl: string, instagramId: string): Promise<
 }
 
 export function scoreReel(metrics: ReelMetrics): boolean {
-  if (metrics.rejectionReason) return false;
-  // Auto-approve if views >= 300 and like ratio >= 2%
-  const likeRatio = metrics.views > 0 ? (metrics.likes / metrics.views) * 100 : 0;
-  return metrics.views >= 300 && likeRatio >= 2;
+  return !metrics.rejectionReason;
 }
 
 // ── Quiz verifier via Google Sheets API ─────────────────────────────────────

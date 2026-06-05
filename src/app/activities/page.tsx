@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Film,
   MessageSquare,
@@ -96,11 +97,29 @@ interface SubmissionForm {
 }
 
 export default function ActivitiesPage() {
+  const router = useRouter();
   const [selectedActivity, setSelectedActivity] = useState<(typeof ACTIVITIES)[0] | null>(null);
   const [form, setForm] = useState<SubmissionForm>({ link: "", notes: "", file: null });
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.user) {
+          router.push("/login");
+          return;
+        }
+        // Redirect to application-success if onboarding is still pending
+        if (d.user.onboarding?.status === "PENDING") {
+          router.push("/application-success");
+          return;
+        }
+      })
+      .catch(() => router.push("/login"));
+  }, [router]);
 
   const handleSubmit = async () => {
     if (!selectedActivity) return;
