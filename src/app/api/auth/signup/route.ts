@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,10 +55,14 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Do NOT set auth cookie on signup — user must wait for approval
-    return NextResponse.json({
+    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    const cookie = setAuthCookie(token);
+
+    const res = NextResponse.json({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     });
+    res.cookies.set(cookie);
+    return res;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Signup error:", err);

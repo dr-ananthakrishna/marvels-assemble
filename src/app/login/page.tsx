@@ -22,11 +22,6 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        // If user is pending, redirect to application-success page
-        if (data.pending) {
-          router.push("/application-success");
-          return;
-        }
         setError(data.error || "Login failed");
         return;
       }

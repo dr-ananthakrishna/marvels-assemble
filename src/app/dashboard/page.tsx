@@ -27,7 +27,6 @@ interface UserData {
   totalRewards?: number;
   activitiesCompleted?: number;
   recentBadges?: Array<{ name: string; points: number }>;
-  onboarding?: { status: string };
 }
 
 export default function DashboardPage() {
@@ -41,11 +40,6 @@ export default function DashboardPage() {
       .then((d) => {
         if (!d.user) {
           router.push("/login");
-          return;
-        }
-        // Redirect to application-success if onboarding is still pending
-        if (d.user.onboarding?.status === "PENDING") {
-          router.push("/application-success");
           return;
         }
         setUser(d.user);

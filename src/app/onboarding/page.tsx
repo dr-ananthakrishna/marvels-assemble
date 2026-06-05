@@ -30,6 +30,10 @@ export default function OnboardingPage() {
 
   async function handleUpload() {
     if (!file) return;
+    if (file.size > 14 * 1024 * 1024) {
+      setError("Video must be under 14MB (Gemini's inline limit). Compress with HandBrake or trim to under 2 minutes.");
+      return;
+    }
     setStage("processing");
     setError("");
     setUploadProgress(0);
@@ -112,7 +116,7 @@ export default function OnboardingPage() {
                 ))}
               </ol>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-amber-800 text-xs">📹 Keep your video under <strong>2–3 minutes</strong>. MP4 or MOV preferred.</p>
+                <p className="text-amber-800 text-xs">📹 Keep your video under <strong>2 minutes</strong> and under <strong>14MB</strong>. MP4 preferred. Compress with <a href="https://www.handbrake.fr" target="_blank" rel="noreferrer" className="underline">HandBrake</a> if needed.</p>
               </div>
               <button
                 onClick={() => setStage("upload")}
@@ -139,7 +143,7 @@ export default function OnboardingPage() {
                   <div className="space-y-2">
                     <p className="text-3xl">📹</p>
                     <p className="text-gray-600 text-sm font-medium">Click to choose video</p>
-                    <p className="text-gray-400 text-xs">MP4, MOV — 2–3 minutes recommended</p>
+                    <p className="text-gray-400 text-xs">MP4, MOV — max 14MB</p>
                   </div>
                 )}
               </div>
@@ -170,13 +174,8 @@ export default function OnboardingPage() {
                 </>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold text-gray-900">Analysing your video…</h2>
-                  <div className="space-y-2 text-sm text-gray-500 pt-1">
-                    <p>🎵 Extracting audio</p>
-                    <p>📝 Transcribing speech</p>
-                    <p>🧠 Scoring your answers</p>
-                  </div>
-                  <p className="text-gray-400 text-xs pt-1">This takes up to 60 seconds. Please don't close this tab.</p>
+                  <h2 className="text-xl font-bold text-gray-900">AI is reviewing your video...</h2>
+                  <p className="text-gray-500 text-sm">This takes 20–40 seconds. Please don't close this tab.</p>
                   <div className="flex justify-center gap-1 pt-2">
                     {[0, 1, 2].map(i => (
                       <div key={i} className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />

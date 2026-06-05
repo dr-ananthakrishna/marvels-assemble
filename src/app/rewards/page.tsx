@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Gift } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 
@@ -48,7 +47,6 @@ const REWARDS = [
 ];
 
 export default function RewardsPage() {
-  const router = useRouter();
   const [availablePoints, setAvailablePoints] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [selectedReward, setSelectedReward] = useState<(typeof REWARDS)[0] | null>(null);
@@ -59,20 +57,11 @@ export default function RewardsPage() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
-        if (!d.user) {
-          router.push("/login");
-          return;
-        }
-        // Redirect to application-success if onboarding is still pending
-        if (d.user.onboarding?.status === "PENDING") {
-          router.push("/application-success");
-          return;
-        }
         if (d.user?.availablePoints !== undefined) setAvailablePoints(d.user.availablePoints);
         if (d.user?.totalPoints !== undefined) setTotalEarned(d.user.totalPoints);
       })
-      .catch(() => router.push("/login"));
-  }, [router]);
+      .catch(() => {});
+  }, []);
 
   const handleRedeem = async () => {
     if (!selectedReward) return;

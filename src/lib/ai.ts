@@ -1,12 +1,7 @@
 /**
- * AI scoring pipeline:
- *   1. Download video from Supabase public URL
- *   2. Transcribe via OpenRouter → openai/whisper-1 (sends video directly — no ffmpeg needed)
- *   3. Score via OpenRouter → openai/gpt-4o-mini (transcript in prompt)
- *
- * No ffmpeg required — Whisper accepts mp4/mov/webm video files natively.
- * This works in Vercel serverless functions without any native binaries.
+ * AI scoring via OpenRouter — model configurable via OPENROUTER_MODEL env var
  */
+
 
 export interface ScoringResult {
   approved: boolean;
@@ -28,7 +23,7 @@ export interface ScoringResult {
 
 const SYSTEM_PROMPT = `You are screening applicants for the "Marvel Ambassador" programme run by Marrow (a medical education platform).
 
-Read the transcript below and score the candidate using this rubric. Total score is out of 100.
+Watch the video and score the candidate using this rubric. Total score is out of 100.
 
 ── FIXED CRITERIA (always scored) ──────────────────────────────────────────
 1. Communication (25 pts max)
@@ -36,7 +31,7 @@ Read the transcript below and score the candidate using this rubric. Total score
    Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
 
 2. Confidence (25 pts max)
-   Assertive tone, steady delivery, no excessive hesitation.
+   Eye contact, steady voice, no excessive hesitation.
    Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
 
 ── DESIRABLE SIGNALS (earned only — 0 if not mentioned) ────────────────────
@@ -75,7 +70,8 @@ Respond ONLY as valid JSON with no markdown or explanation:
     "entrepreneurial": 0,
     "socialMedia": 0
   },
-  "reason": "Good communicator with clear leadership experience and extracurricular involvement. Academics, entrepreneurial mindset, and social media not mentioned. Score below 80 — flagged for human review."
+  "reason": "Good communicator with clear leadership experience and extracurricular involvement. Academics, entrepreneurial mindset, and social media not mentioned. Score below 80 — flagged for human review.",
+  "transcript": "Full verbatim transcript of everything the candidate said in the video."
 }`;
 
 function mockResult(): ScoringResult {
@@ -106,113 +102,51 @@ function mockResult(): ScoringResult {
   };
 }
 
-/**
- * Transcribe a video/audio file via OpenRouter → openai/whisper-1.
- * Whisper accepts mp4, mov, webm, mp3, wav, m4a, ogg, flac natively.
- * No ffmpeg extraction needed — the video file is sent directly.
- */
-async function transcribeVideo(videoUrl: string): Promise<string> {
-  // Download the video into memory
-  const videoRes = await fetch(videoUrl);
-  if (!videoRes.ok) {
-    throw new Error(`Failed to download video: ${videoRes.status} ${videoRes.statusText}`);
-  }
+export async function scoreOnboardingVideo(
+  videoUrl: string
+): Promise<ScoringResult> {
+  if (process.env.MOCK_AI === "true") return mockResult();
 
-  const videoBuffer = await videoRes.arrayBuffer();
+  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
-  // Derive filename/mime from URL
-  const urlPath = videoUrl.split("?")[0];
-  const ext = urlPath.split(".").pop()?.toLowerCase() || "mp4";
-  const mimeMap: Record<string, string> = {
-    mp4: "video/mp4",
-    mov: "video/quicktime",
-    webm: "video/webm",
-    mkv: "video/x-matroska",
-    avi: "video/x-msvideo",
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    m4a: "audio/mp4",
-    ogg: "audio/ogg",
-    flac: "audio/flac",
-  };
-  const mimeType = mimeMap[ext] ?? "video/mp4";
-  const filename = `interview.${ext}`;
-
-  // Build multipart form — OpenRouter/OpenAI Whisper expects multipart/form-data
-  const formData = new FormData();
-  formData.append(
-    "file",
-    new Blob([videoBuffer], { type: mimeType }),
-    filename
-  );
-  formData.append("model", "openai/whisper-1");
-
-  const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-      // Do NOT set Content-Type — let fetch set it with the boundary
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenRouter transcription ${res.status}: ${err}`);
-  }
-
-  const data = await res.json();
-  if (data.error) throw new Error(`OpenRouter transcription error: ${JSON.stringify(data.error)}`);
-
-  // Response shape: { text: "..." }
-  const transcript = (data.text as string | undefined)?.trim() ?? "";
-  if (!transcript) throw new Error("Transcription returned empty text");
-  return transcript;
-}
-
-/** Score a transcript via OpenRouter → openai/gpt-4o-mini */
-async function scoreTranscript(transcript: string): Promise<Omit<ScoringResult, "transcript">> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model,
       stream: false,
       max_tokens: 1024,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `TRANSCRIPT:\n\n${transcript}` },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: SYSTEM_PROMPT },
+            { type: "video_url", video_url: { url: videoUrl } },
+          ],
+        },
       ],
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`OpenRouter scoring ${res.status}: ${err}`);
+    throw new Error(`OpenRouter ${res.status}: ${err}`);
   }
 
   const data = await res.json();
-  if (data.error) throw new Error(`OpenRouter scoring error: ${JSON.stringify(data.error)}`);
-  if (!data.choices?.length) throw new Error(`Unexpected OpenRouter response: ${JSON.stringify(data)}`);
+
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${JSON.stringify(data.error)}`);
+  }
+  if (!data.choices?.length) {
+    throw new Error(`Unexpected OpenRouter response: ${JSON.stringify(data)}`);
+  }
 
   const text = (data.choices[0].message.content as string).trim();
   const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-  return JSON.parse(json) as Omit<ScoringResult, "transcript">;
-}
-
-export async function scoreOnboardingVideo(videoUrl: string): Promise<ScoringResult> {
-  if (process.env.MOCK_AI === "true") return mockResult();
-
-  // Step 1: Transcribe video directly (no ffmpeg — Whisper handles video natively)
-  const transcript = await transcribeVideo(videoUrl);
-
-  // Step 2: Score transcript
-  const scoring = await scoreTranscript(transcript);
-
-  return { ...scoring, transcript };
+  return JSON.parse(json) as ScoringResult;
 }

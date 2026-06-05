@@ -20,25 +20,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    // Check onboarding status for MARVEL users
-    if (user.role === "MARVEL") {
-      const onboarding = await prisma.onboarding.findUnique({
-        where: { userId: user.id },
-      });
-      if (onboarding && onboarding.status === "PENDING") {
-        return NextResponse.json(
-          { error: "Your application is still under review. You will be able to log in once approved.", pending: true },
-          { status: 403 }
-        );
-      }
-      if (onboarding && onboarding.status === "REJECTED") {
-        return NextResponse.json(
-          { error: "Your application has been rejected. Please contact support for more information.", rejected: true },
-          { status: 403 }
-        );
-      }
-    }
-
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
     const cookie = setAuthCookie(token);
 
