@@ -30,8 +30,22 @@ export default function InterviewScorerPage() {
   const [rawJson, setRawJson] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const MAX_FILE_SIZE_MB = 50;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
   async function handleUpload() {
     if (!file) return;
+
+    // Client-side file size validation (Supabase storage limit is 50 MB)
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError(
+        `Video is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). ` +
+        `Maximum allowed size is ${MAX_FILE_SIZE_MB} MB. ` +
+        `Please compress your video or trim it to under 3 minutes before uploading.`
+      );
+      return;
+    }
+
     setStage("processing");
     setError("");
     setUploadProgress(0);
@@ -46,10 +60,6 @@ export default function InterviewScorerPage() {
       if (!urlRes.ok) throw new Error(urlData.error);
 
       // Step 2: Upload directly to Supabase storage
-      console.log("[Interview Scorer] Upload URL:", urlData.uploadUrl);
-      console.log("[Interview Scorer] File type:", file.type || "video/mp4");
-      console.log("[Interview Scorer] File size:", file.size);
-      
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.upload.onprogress = (e) => {
@@ -57,19 +67,21 @@ export default function InterviewScorerPage() {
             setUploadProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = () => {
-          console.log("[Interview Scorer] Upload response status:", xhr.status);
-          console.log("[Interview Scorer] Upload response headers:", xhr.getAllResponseHeaders());
-          console.log("[Interview Scorer] Upload response body:", xhr.responseText);
           if (xhr.status < 300) {
             resolve();
           } else {
-            reject(new Error(`Upload failed: ${xhr.status} - ${xhr.responseText}`));
+            // Parse Supabase error response for better error messages
+            let errorMsg = `Upload failed (HTTP ${xhr.status})`;
+            try {
+              const body = JSON.parse(xhr.responseText);
+              if (body.message) errorMsg = body.message;
+            } catch {
+              // Use default error message
+            }
+            reject(new Error(errorMsg));
           }
         };
-        xhr.onerror = () => {
-          console.error("[Interview Scorer] Upload network error");
-          reject(new Error("Upload network error"));
-        };
+        xhr.onerror = () => reject(new Error("Upload network error"));
         xhr.open("PUT", urlData.uploadUrl);
         xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
         xhr.send(file);
@@ -107,7 +119,7 @@ export default function InterviewScorerPage() {
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <h1 className="text-lg font-bold text-indigo-700 flex items-center gap-2">
           🎯 Interview Scorer
-          <span className="text-xs font-medium bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">v3</span>
+          <span className="text-xs font-medium bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">v4</span>
         </h1>
         <span className="text-xs text-gray-400">
           No login required · No data stored
@@ -148,7 +160,7 @@ export default function InterviewScorerPage() {
                       Click to choose video
                     </p>
                     <p className="text-gray-400 text-xs">
-                      MP4, MOV — 2–3 minutes recommended
+                      MP4, MOV — max 50 MB · 2–3 minutes recommended
                     </p>
                   </div>
                 )}

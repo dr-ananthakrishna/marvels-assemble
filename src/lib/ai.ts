@@ -1,16 +1,12 @@
 /**
  * AI scoring pipeline:
  *   1. Download video from Supabase public URL
- *   2. Extract audio → .mp3 via ffmpeg (child_process)
- *   3. Transcribe via OpenRouter → openai/gpt-4o-mini-transcribe
- *   4. Score via OpenRouter → openai/gpt-5.4-mini (transcript in prompt)
+ *   2. Transcribe via OpenRouter → openai/whisper-1 (sends video directly — no ffmpeg needed)
+ *   3. Score via OpenRouter → openai/gpt-4o-mini (transcript in prompt)
+ *
+ * No ffmpeg required — Whisper accepts mp4/mov/webm video files natively.
+ * This works in Vercel serverless functions without any native binaries.
  */
-
-import { spawn, execSync } from "child_process";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import * as crypto from "crypto";
 
 export interface ScoringResult {
   approved: boolean;
@@ -110,74 +106,55 @@ function mockResult(): ScoringResult {
   };
 }
 
-/** Download a URL to a temp file, return the file path */
-async function downloadToTmp(url: string, ext: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to download video: ${res.status} ${res.statusText}`);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${ext}`);
-  fs.writeFileSync(tmpPath, buffer);
-  return tmpPath;
-}
+/**
+ * Transcribe a video/audio file via OpenRouter → openai/whisper-1.
+ * Whisper accepts mp4, mov, webm, mp3, wav, m4a, ogg, flac natively.
+ * No ffmpeg extraction needed — the video file is sent directly.
+ */
+async function transcribeVideo(videoUrl: string): Promise<string> {
+  // Download the video into memory
+  const videoRes = await fetch(videoUrl);
+  if (!videoRes.ok) {
+    throw new Error(`Failed to download video: ${videoRes.status} ${videoRes.statusText}`);
+  }
 
-/** Resolve the ffmpeg binary path — checks common Homebrew locations on macOS */
-function ffmpegBin(): string {
-  // Allow override via env var (useful for production/Docker)
-  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
-  // Try to find it on PATH first
-  try {
-    const found = execSync("which ffmpeg 2>/dev/null || command -v ffmpeg 2>/dev/null", { encoding: "utf8" }).trim();
-    if (found) return found;
-  } catch { /* ignore */ }
-  // Homebrew Apple Silicon
-  if (require("fs").existsSync("/opt/homebrew/bin/ffmpeg")) return "/opt/homebrew/bin/ffmpeg";
-  // Homebrew Intel
-  if (require("fs").existsSync("/usr/local/bin/ffmpeg")) return "/usr/local/bin/ffmpeg";
-  // Last resort — let spawn fail with a clear error
-  return "ffmpeg";
-}
+  const videoBuffer = await videoRes.arrayBuffer();
 
-/** Run ffmpeg to extract audio from videoPath → mp3Path */
-function extractAudio(videoPath: string, mp3Path: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegBin(), [
-      "-y",           // overwrite output
-      "-i", videoPath,
-      "-vn",          // no video
-      "-ar", "16000", // 16 kHz sample rate (sufficient for speech)
-      "-ac", "1",     // mono
-      "-b:a", "64k",  // 64 kbps bitrate
-      mp3Path,
-    ]);
+  // Derive filename/mime from URL
+  const urlPath = videoUrl.split("?")[0];
+  const ext = urlPath.split(".").pop()?.toLowerCase() || "mp4";
+  const mimeMap: Record<string, string> = {
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    mkv: "video/x-matroska",
+    avi: "video/x-msvideo",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    m4a: "audio/mp4",
+    ogg: "audio/ogg",
+    flac: "audio/flac",
+  };
+  const mimeType = mimeMap[ext] ?? "video/mp4";
+  const filename = `interview.${ext}`;
 
-    let stderr = "";
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited with code ${code}:\n${stderr}`));
-    });
-    proc.on("error", (err) => reject(new Error(`ffmpeg spawn error: ${err.message}`)));
-  });
-}
-
-/** Transcribe an mp3 file via OpenRouter → openai/gpt-4o-mini-transcribe */
-async function transcribeAudio(mp3Path: string): Promise<string> {
-  const audioBase64 = fs.readFileSync(mp3Path).toString("base64");
+  // Build multipart form — OpenRouter/OpenAI Whisper expects multipart/form-data
+  const formData = new FormData();
+  formData.append(
+    "file",
+    new Blob([videoBuffer], { type: mimeType }),
+    filename
+  );
+  formData.append("model", "openai/whisper-1");
 
   const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-      "Content-Type": "application/json",
+      // Do NOT set Content-Type — let fetch set it with the boundary
     },
-    body: JSON.stringify({
-      model: "openai/gpt-4o-mini-transcribe",
-      input_audio: {
-        data: audioBase64,
-        format: "mp3",
-      },
-    }),
+    body: formData,
   });
 
   if (!res.ok) {
@@ -194,17 +171,17 @@ async function transcribeAudio(mp3Path: string): Promise<string> {
   return transcript;
 }
 
-/** Score a transcript via OpenRouter → openai/gpt-5.4-mini */
+/** Score a transcript via OpenRouter → openai/gpt-4o-mini */
 async function scoreTranscript(transcript: string): Promise<Omit<ScoringResult, "transcript">> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     },
     body: JSON.stringify({
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-4o-mini",
       stream: false,
       max_tokens: 1024,
       messages: [
@@ -231,33 +208,11 @@ async function scoreTranscript(transcript: string): Promise<Omit<ScoringResult, 
 export async function scoreOnboardingVideo(videoUrl: string): Promise<ScoringResult> {
   if (process.env.MOCK_AI === "true") return mockResult();
 
-  // Derive extension from URL (default mp4)
-  const urlExt = videoUrl.split("?")[0].split(".").pop()?.toLowerCase() || "mp4";
-  const videoPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${urlExt}`);
-  const mp3Path = videoPath.replace(/\.[^.]+$/, ".mp3");
+  // Step 1: Transcribe video directly (no ffmpeg — Whisper handles video natively)
+  const transcript = await transcribeVideo(videoUrl);
 
-  try {
-    // Step 1: Download video from Supabase
-    const videoBuffer = await fetch(videoUrl).then(async (r) => {
-      if (!r.ok) throw new Error(`Failed to download video: ${r.status}`);
-      return Buffer.from(await r.arrayBuffer());
-    });
-    fs.writeFileSync(videoPath, videoBuffer);
+  // Step 2: Score transcript
+  const scoring = await scoreTranscript(transcript);
 
-    // Step 2: Extract audio → .mp3
-    await extractAudio(videoPath, mp3Path);
-
-    // Step 3: Transcribe audio
-    const transcript = await transcribeAudio(mp3Path);
-
-    // Step 4: Score transcript
-    const scoring = await scoreTranscript(transcript);
-
-    return { ...scoring, transcript };
-  } finally {
-    // Clean up temp files
-    for (const p of [videoPath, mp3Path]) {
-      try { fs.unlinkSync(p); } catch { /* ignore */ }
-    }
-  }
+  return { ...scoring, transcript };
 }
