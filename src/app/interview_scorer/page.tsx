@@ -46,17 +46,30 @@ export default function InterviewScorerPage() {
       if (!urlRes.ok) throw new Error(urlData.error);
 
       // Step 2: Upload directly to Supabase storage
+      console.log("[Interview Scorer] Upload URL:", urlData.uploadUrl);
+      console.log("[Interview Scorer] File type:", file.type || "video/mp4");
+      console.log("[Interview Scorer] File size:", file.size);
+      
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable)
             setUploadProgress(Math.round((e.loaded / e.total) * 100));
         };
-        xhr.onload = () =>
-          xhr.status < 300
-            ? resolve()
-            : reject(new Error(`Upload failed: ${xhr.status}`));
-        xhr.onerror = () => reject(new Error("Upload network error"));
+        xhr.onload = () => {
+          console.log("[Interview Scorer] Upload response status:", xhr.status);
+          console.log("[Interview Scorer] Upload response headers:", xhr.getAllResponseHeaders());
+          console.log("[Interview Scorer] Upload response body:", xhr.responseText);
+          if (xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} - ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => {
+          console.error("[Interview Scorer] Upload network error");
+          reject(new Error("Upload network error"));
+        };
         xhr.open("PUT", urlData.uploadUrl);
         xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
         xhr.send(file);
@@ -92,8 +105,9 @@ export default function InterviewScorerPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-lg font-bold text-indigo-700">
+        <h1 className="text-lg font-bold text-indigo-700 flex items-center gap-2">
           🎯 Interview Scorer
+          <span className="text-xs font-medium bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">v3</span>
         </h1>
         <span className="text-xs text-gray-400">
           No login required · No data stored
