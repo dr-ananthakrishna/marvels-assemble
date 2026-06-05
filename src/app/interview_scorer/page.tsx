@@ -32,12 +32,6 @@ export default function InterviewScorerPage() {
 
   async function handleUpload() {
     if (!file) return;
-    if (file.size > 14 * 1024 * 1024) {
-      setError(
-        "Video must be under 14MB (Gemini's inline limit). Compress with HandBrake or trim to under 2 minutes."
-      );
-      return;
-    }
     setStage("processing");
     setError("");
     setUploadProgress(0);
@@ -140,7 +134,7 @@ export default function InterviewScorerPage() {
                       Click to choose video
                     </p>
                     <p className="text-gray-400 text-xs">
-                      MP4, MOV — max 14MB
+                      MP4, MOV — 2–3 minutes recommended
                     </p>
                   </div>
                 )}
@@ -187,10 +181,15 @@ export default function InterviewScorerPage() {
               ) : (
                 <>
                   <h2 className="text-xl font-bold text-gray-900">
-                    AI is reviewing the video…
+                    Analysing the video…
                   </h2>
-                  <p className="text-gray-500 text-sm">
-                    This takes 20–40 seconds. Please don't close this tab.
+                  <div className="space-y-2 text-sm text-gray-500 pt-1">
+                    <p>🎵 Extracting audio</p>
+                    <p>📝 Transcribing speech</p>
+                    <p>🧠 Scoring the answers</p>
+                  </div>
+                  <p className="text-gray-400 text-xs pt-1">
+                    This takes up to 60 seconds. Please don't close this tab.
                   </p>
                   <div className="flex justify-center gap-1 pt-2">
                     {[0, 1, 2].map((i) => (

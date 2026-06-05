@@ -1,7 +1,16 @@
 /**
- * AI scoring via OpenRouter — model configurable via OPENROUTER_MODEL env var
+ * AI scoring pipeline:
+ *   1. Download video from Supabase public URL
+ *   2. Extract audio → .mp3 via ffmpeg (child_process)
+ *   3. Transcribe via OpenRouter → openai/gpt-4o-mini-transcribe
+ *   4. Score via OpenRouter → openai/gpt-5.4-mini (transcript in prompt)
  */
 
+import { spawn, execSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import * as crypto from "crypto";
 
 export interface ScoringResult {
   approved: boolean;
@@ -23,7 +32,7 @@ export interface ScoringResult {
 
 const SYSTEM_PROMPT = `You are screening applicants for the "Marvel Ambassador" programme run by Marrow (a medical education platform).
 
-Watch the video and score the candidate using this rubric. Total score is out of 100.
+Read the transcript below and score the candidate using this rubric. Total score is out of 100.
 
 ── FIXED CRITERIA (always scored) ──────────────────────────────────────────
 1. Communication (25 pts max)
@@ -31,7 +40,7 @@ Watch the video and score the candidate using this rubric. Total score is out of
    Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
 
 2. Confidence (25 pts max)
-   Eye contact, steady voice, no excessive hesitation.
+   Assertive tone, steady delivery, no excessive hesitation.
    Scoring: detailed & excellent → 23–25 | good → 18–22 | adequate → 12–17 | poor → 0–11
 
 ── DESIRABLE SIGNALS (earned only — 0 if not mentioned) ────────────────────
@@ -70,8 +79,7 @@ Respond ONLY as valid JSON with no markdown or explanation:
     "entrepreneurial": 0,
     "socialMedia": 0
   },
-  "reason": "Good communicator with clear leadership experience and extracurricular involvement. Academics, entrepreneurial mindset, and social media not mentioned. Score below 80 — flagged for human review.",
-  "transcript": "Full verbatim transcript of everything the candidate said in the video."
+  "reason": "Good communicator with clear leadership experience and extracurricular involvement. Academics, entrepreneurial mindset, and social media not mentioned. Score below 80 — flagged for human review."
 }`;
 
 function mockResult(): ScoringResult {
@@ -102,13 +110,92 @@ function mockResult(): ScoringResult {
   };
 }
 
-export async function scoreOnboardingVideo(
-  videoUrl: string
-): Promise<ScoringResult> {
-  if (process.env.MOCK_AI === "true") return mockResult();
+/** Download a URL to a temp file, return the file path */
+async function downloadToTmp(url: string, ext: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to download video: ${res.status} ${res.statusText}`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${ext}`);
+  fs.writeFileSync(tmpPath, buffer);
+  return tmpPath;
+}
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+/** Resolve the ffmpeg binary path — checks common Homebrew locations on macOS */
+function ffmpegBin(): string {
+  // Allow override via env var (useful for production/Docker)
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  // Try to find it on PATH first
+  try {
+    const found = execSync("which ffmpeg 2>/dev/null || command -v ffmpeg 2>/dev/null", { encoding: "utf8" }).trim();
+    if (found) return found;
+  } catch { /* ignore */ }
+  // Homebrew Apple Silicon
+  if (require("fs").existsSync("/opt/homebrew/bin/ffmpeg")) return "/opt/homebrew/bin/ffmpeg";
+  // Homebrew Intel
+  if (require("fs").existsSync("/usr/local/bin/ffmpeg")) return "/usr/local/bin/ffmpeg";
+  // Last resort — let spawn fail with a clear error
+  return "ffmpeg";
+}
 
+/** Run ffmpeg to extract audio from videoPath → mp3Path */
+function extractAudio(videoPath: string, mp3Path: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegBin(), [
+      "-y",           // overwrite output
+      "-i", videoPath,
+      "-vn",          // no video
+      "-ar", "16000", // 16 kHz sample rate (sufficient for speech)
+      "-ac", "1",     // mono
+      "-b:a", "64k",  // 64 kbps bitrate
+      mp3Path,
+    ]);
+
+    let stderr = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited with code ${code}:\n${stderr}`));
+    });
+    proc.on("error", (err) => reject(new Error(`ffmpeg spawn error: ${err.message}`)));
+  });
+}
+
+/** Transcribe an mp3 file via OpenRouter → openai/gpt-4o-mini-transcribe */
+async function transcribeAudio(mp3Path: string): Promise<string> {
+  const audioBase64 = fs.readFileSync(mp3Path).toString("base64");
+
+  const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4o-mini-transcribe",
+      input_audio: {
+        data: audioBase64,
+        format: "mp3",
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter transcription ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  if (data.error) throw new Error(`OpenRouter transcription error: ${JSON.stringify(data.error)}`);
+
+  // Response shape: { text: "..." }
+  const transcript = (data.text as string | undefined)?.trim() ?? "";
+  if (!transcript) throw new Error("Transcription returned empty text");
+  return transcript;
+}
+
+/** Score a transcript via OpenRouter → openai/gpt-5.4-mini */
+async function scoreTranscript(transcript: string): Promise<Omit<ScoringResult, "transcript">> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -117,36 +204,60 @@ export async function scoreOnboardingVideo(
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     },
     body: JSON.stringify({
-      model,
+      model: "openai/gpt-5.4-mini",
       stream: false,
       max_tokens: 1024,
       messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: SYSTEM_PROMPT },
-            { type: "video_url", video_url: { url: videoUrl } },
-          ],
-        },
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `TRANSCRIPT:\n\n${transcript}` },
       ],
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`OpenRouter ${res.status}: ${err}`);
+    throw new Error(`OpenRouter scoring ${res.status}: ${err}`);
   }
 
   const data = await res.json();
-
-  if (data.error) {
-    throw new Error(`OpenRouter error: ${JSON.stringify(data.error)}`);
-  }
-  if (!data.choices?.length) {
-    throw new Error(`Unexpected OpenRouter response: ${JSON.stringify(data)}`);
-  }
+  if (data.error) throw new Error(`OpenRouter scoring error: ${JSON.stringify(data.error)}`);
+  if (!data.choices?.length) throw new Error(`Unexpected OpenRouter response: ${JSON.stringify(data)}`);
 
   const text = (data.choices[0].message.content as string).trim();
   const json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-  return JSON.parse(json) as ScoringResult;
+  return JSON.parse(json) as Omit<ScoringResult, "transcript">;
+}
+
+export async function scoreOnboardingVideo(videoUrl: string): Promise<ScoringResult> {
+  if (process.env.MOCK_AI === "true") return mockResult();
+
+  // Derive extension from URL (default mp4)
+  const urlExt = videoUrl.split("?")[0].split(".").pop()?.toLowerCase() || "mp4";
+  const videoPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${urlExt}`);
+  const mp3Path = videoPath.replace(/\.[^.]+$/, ".mp3");
+
+  try {
+    // Step 1: Download video from Supabase
+    const videoBuffer = await fetch(videoUrl).then(async (r) => {
+      if (!r.ok) throw new Error(`Failed to download video: ${r.status}`);
+      return Buffer.from(await r.arrayBuffer());
+    });
+    fs.writeFileSync(videoPath, videoBuffer);
+
+    // Step 2: Extract audio → .mp3
+    await extractAudio(videoPath, mp3Path);
+
+    // Step 3: Transcribe audio
+    const transcript = await transcribeAudio(mp3Path);
+
+    // Step 4: Score transcript
+    const scoring = await scoreTranscript(transcript);
+
+    return { ...scoring, transcript };
+  } finally {
+    // Clean up temp files
+    for (const p of [videoPath, mp3Path]) {
+      try { fs.unlinkSync(p); } catch { /* ignore */ }
+    }
+  }
 }
