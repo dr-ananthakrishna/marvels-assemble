@@ -1,5 +1,5 @@
 -- ============================================================
--- PulsePoints / Marvels Assemble — Full Database Schema + Mock Data
+-- BlueStreaks / Marvels Assemble — Full Database Schema + Mock Data
 -- Run this in your Supabase SQL Editor
 -- ============================================================
 

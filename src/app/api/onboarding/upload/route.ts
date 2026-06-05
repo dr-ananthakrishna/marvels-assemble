@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await scoreOnboardingVideo(videoUrl);
-    const status = result.approved ? "APPROVED" : result.needsHumanReview ? "PENDING" : "REJECTED";
+    // Auto-approve if score > 30; otherwise put in PENDING for human review
+    const status = result.score > 30 ? "APPROVED" : "PENDING";
 
     const onboarding = await prisma.onboarding.upsert({
       where: { userId: finalUserId },

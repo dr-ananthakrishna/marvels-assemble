@@ -20,7 +20,7 @@ export default function AppLayout() {
 
   const getCurrentPageTitle = () => {
     const currentItem = NAV_ITEMS.find(item => item.path === location.pathname);
-    return currentItem?.title || 'Pulse Points';
+    return currentItem?.title || 'BlueStreaks';
   };
 
   return (
@@ -63,7 +63,7 @@ export default function AppLayout() {
       >
         {/* Logo */}
         <div className="p-6 pt-8">
-          <img src={logoSvg} alt="Pulse Points" className="h-6" />
+          <img src={logoSvg} alt="BlueStreaks" className="h-6" />
         </div>
 
         {/* User Profile */}

@@ -10,7 +10,8 @@ function SuccessContent() {
   const status = searchParams.get("status");
   
   const numericScore = score ? parseInt(score, 10) : null;
-  const isApproved = numericScore !== null && numericScore > 80;
+  // Auto-approved when score > 30; pending human review otherwise
+  const isApproved = status === "approved" || (numericScore !== null && numericScore > 30);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6">
@@ -21,10 +22,9 @@ function SuccessContent() {
               <CheckCircle2 className="w-12 h-12 text-[#62C8DF]" strokeWidth={2} />
             </div>
 
-            <h1 className="text-3xl font-semibold mb-3">Application submitted!</h1>
+            <h1 className="text-3xl font-semibold mb-3">You're in! Welcome, Marvel! 🎉</h1>
             <p className="text-[#666666] mb-8 text-lg">
-              We'll review your profile and get back to you soon. Meanwhile, explore what being a
-              Marvel looks like.
+              Your application has been approved. You now have full access to activities, badges, and rewards.
             </p>
 
             <Link
@@ -43,19 +43,19 @@ function SuccessContent() {
             </Link>
 
             <div className="mt-8 p-6 bg-[#F5F5F7] rounded-2xl text-left">
-              <h3 className="font-semibold mb-3 text-[#1A1A2E]">What happens next?</h3>
+              <h3 className="font-semibold mb-3 text-[#1A1A2E]">Get started</h3>
               <ul className="space-y-3 text-sm text-[#666666]">
                 <li className="flex items-start gap-2">
                   <span className="text-[#62C8DF] font-bold mt-0.5">1.</span>
-                  <span>Our team will review your application within 3–5 business days</span>
+                  <span>Explore your dashboard and complete your profile</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#62C8DF] font-bold mt-0.5">2.</span>
-                  <span>You'll receive an email with the decision</span>
+                  <span>Start earning badges by completing activities</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#62C8DF] font-bold mt-0.5">3.</span>
-                  <span>If approved, you'll get full access to activities, badges, and rewards</span>
+                  <span>Redeem your rewards and grow your campus presence</span>
                 </li>
               </ul>
             </div>

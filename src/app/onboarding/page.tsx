@@ -204,10 +204,10 @@ export default function OnboardingPage() {
               </div>
               {result.approved ? (
                 <button
-                  onClick={() => router.push("/dashboard")}
+                  onClick={() => router.push(`/application-success?score=${result.score}&status=approved`)}
                   className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm"
                 >
-                  Go to my dashboard →
+                  Continue →
                 </button>
               ) : (
                 <button

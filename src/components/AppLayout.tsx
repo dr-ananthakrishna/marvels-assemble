@@ -26,7 +26,7 @@ export default function AppLayout({ children, user }: AppLayoutProps) {
 
   const getCurrentPageTitle = () => {
     const currentItem = NAV_ITEMS.find((item) => item.path === pathname);
-    return currentItem?.title || "Pulse Points";
+    return currentItem?.title || "BlueStreaks";
   };
 
   async function handleLogout() {

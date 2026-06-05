@@ -21,7 +21,7 @@ export default function Splash() {
         className="text-center"
       >
         <h1 className="text-5xl font-semibold tracking-tight mb-4">
-          Pulse <span className="text-[#62C8DF]">Points</span>
+          Blue<span className="text-[#62C8DF]">Streaks</span>
         </h1>
 
         <motion.div
