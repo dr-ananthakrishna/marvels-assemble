@@ -25,6 +25,8 @@ interface UserData {
   rank?: string;
   sales?: number;
   totalRewards?: number;
+  totalPoints?: number;
+  availablePoints?: number;
   activitiesCompleted?: number;
   recentBadges?: Array<{ name: string; points: number }>;
 }
@@ -62,7 +64,8 @@ export default function DashboardPage() {
   const currentSales = user?.sales || 0;
   const nextRank = RANK_PROGRESSION[0];
   const salesNeeded = nextRank.sales - currentSales;
-  const totalRewards = user?.totalRewards ?? 0;
+  // Use totalPoints (sum of approved activity points) as the "Total Rewards" figure
+  const totalRewards = user?.totalPoints ?? user?.availablePoints ?? user?.totalRewards ?? 0;
   const activitiesCompleted = user?.activitiesCompleted ?? 0;
   const recentBadges = user?.recentBadges ?? [];
 

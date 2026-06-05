@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Film,
   MessageSquare,
@@ -13,6 +13,7 @@ import {
   Lightbulb,
   X,
   Send,
+  Star,
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 
@@ -95,12 +96,33 @@ interface SubmissionForm {
   file: File | null;
 }
 
+interface PointsPopup {
+  visible: boolean;
+  points: number;
+  totalPoints: number;
+}
+
 export default function ActivitiesPage() {
   const [selectedActivity, setSelectedActivity] = useState<(typeof ACTIVITIES)[0] | null>(null);
   const [form, setForm] = useState<SubmissionForm>({ link: "", notes: "", file: null });
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [pointsPopup, setPointsPopup] = useState<PointsPopup>({ visible: false, points: 0, totalPoints: 0 });
+  const [userPoints, setUserPoints] = useState<number | null>(null);
+
+  const fetchPoints = useCallback(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user?.totalPoints !== undefined) setUserPoints(d.user.totalPoints);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchPoints();
+  }, [fetchPoints]);
 
   const handleSubmit = async () => {
     if (!selectedActivity) return;
@@ -121,17 +143,40 @@ export default function ActivitiesPage() {
         setError(data.error || "Submission failed");
         return;
       }
+
       setSubmitSuccess(true);
-      setTimeout(() => {
-        setSubmitSuccess(false);
-        setSelectedActivity(null);
-        setForm({ link: "", notes: "", file: null });
-      }, 2000);
+
+      // If auto-approved (REEL verification succeeded), show points popup
+      if (data.autoApproved && data.pointsEarned > 0) {
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setSelectedActivity(null);
+          setForm({ link: "", notes: "", file: null });
+          // Show points earned popup
+          setPointsPopup({
+            visible: true,
+            points: data.pointsEarned,
+            totalPoints: data.totalPoints ?? (userPoints ?? 0) + data.pointsEarned,
+          });
+          // Refresh points in sidebar/header
+          fetchPoints();
+        }, 800);
+      } else {
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setSelectedActivity(null);
+          setForm({ link: "", notes: "", file: null });
+        }, 2000);
+      }
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const closePointsPopup = () => {
+    setPointsPopup({ visible: false, points: 0, totalPoints: 0 });
   };
 
   return (
@@ -300,6 +345,59 @@ export default function ActivitiesPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Points Earned Popup */}
+      {pointsPopup.visible && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50"
+          onClick={closePointsPopup}
+        >
+          <div
+            className="bg-white drop-shadow-[2px_1px_4px_rgba(0,0,0,0.18)] rounded-2xl px-8 py-10 max-w-sm w-full text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Animated star burst */}
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="w-24 h-24 rounded-full bg-[#62C8DF]/10 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-[#62C8DF]/20 flex items-center justify-center">
+                  <Star className="w-9 h-9 text-[#62C8DF] fill-[#62C8DF]" strokeWidth={0} />
+                </div>
+              </div>
+            </div>
+
+            <h3 className="text-2xl font-bold text-[#1A1A2E] mb-2">
+              🎉 Verified!
+            </h3>
+            <p className="text-[#666666] text-sm mb-6">
+              Your Instagram reel was verified successfully.
+            </p>
+
+            {/* Points badge */}
+            <div className="inline-flex items-center gap-2 bg-[#82C42D] text-white px-6 py-3 rounded-full text-xl font-bold mb-4">
+              +{pointsPopup.points} Points Earned
+            </div>
+
+            <p className="text-sm text-[#666666] mb-8">
+              Total Points:{" "}
+              <span className="font-semibold text-[#62C8DF]">{pointsPopup.totalPoints}</span>
+            </p>
+
+            <button
+              onClick={closePointsPopup}
+              className="w-full h-11 rounded-[4px] relative"
+            >
+              <div
+                aria-hidden
+                className="absolute bg-[#62c8df] inset-0 pointer-events-none rounded-[4px]"
+              />
+              <span className="relative z-10 font-bold text-sm text-white tracking-[0.5px]">
+                AWESOME!
+              </span>
+              <div className="absolute inset-0 pointer-events-none rounded-[inherit] shadow-[inset_0px_-2px_3px_0px_rgba(0,0,0,0.2)]" />
+            </button>
           </div>
         </div>
       )}

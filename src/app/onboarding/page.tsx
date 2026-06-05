@@ -19,7 +19,10 @@ export default function OnboardingPage() {
       if (d.user) setUser(d.user);
     });
     fetch("/api/onboarding/status").then(r => r.json()).then(d => {
-      if (d.onboarding?.status === "APPROVED") router.replace("/dashboard");
+      if (d.onboarding?.status === "APPROVED") {
+        const score = d.onboarding?.score ?? "";
+        router.replace(`/application-success?score=${score}&status=approved`);
+      }
     });
   }, [router]);
 

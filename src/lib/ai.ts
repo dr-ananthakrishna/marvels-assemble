@@ -52,8 +52,8 @@ For each signal that IS mentioned:
 8. Social media presence (5 pts max) — follower count, content creator, runs a community
 
 ── DECISION ─────────────────────────────────────────────────────────────────
-Score > 30  → approved: true,  needsHumanReview: false
-Score ≤ 30  → approved: false, needsHumanReview: true  (admin will review manually)
+Score > 10  → approved: true,  needsHumanReview: false
+Score ≤ 10  → approved: false, needsHumanReview: true  (admin will review manually)
 
 Respond ONLY as valid JSON with no markdown or explanation:
 {

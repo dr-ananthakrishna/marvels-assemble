@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Activity, Award, GraduationCap, Gift, LogOut, Menu, X } from "lucide-react";
+import { Home, Activity, Award, GraduationCap, Gift, LogOut, Menu, X, Zap } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Home", title: "Home", icon: Home },
@@ -21,6 +21,26 @@ export default function AppLayout({ children, user }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [livePoints, setLivePoints] = useState<number | null>(null);
+  const [liveUser, setLiveUser] = useState<{ name: string; plan?: string; course?: string } | null>(
+    user ?? null
+  );
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setLivePoints(d.user.totalPoints ?? d.user.availablePoints ?? 0);
+          if (!user) {
+            setLiveUser({ name: d.user.name, plan: "Plan C", course: "NEET PG" });
+          }
+        }
+      })
+      .catch(() => {});
+  // Re-fetch whenever the pathname changes (navigating between pages)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const isActive = (path: string) => pathname === path;
 
@@ -33,6 +53,8 @@ export default function AppLayout({ children, user }: AppLayoutProps) {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/welcome");
   }
+
+  const displayUser = user ?? liveUser;
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col lg:flex-row">
@@ -47,12 +69,32 @@ export default function AppLayout({ children, user }: AppLayoutProps) {
         <h1 className="text-base font-semibold text-[#1A1A2E] absolute left-1/2 -translate-x-1/2">
           {getCurrentPageTitle()}
         </h1>
+        {/* Points pill – mobile */}
+        {livePoints !== null && (
+          <Link
+            href="/rewards"
+            className="flex items-center gap-1 bg-[#62C8DF]/10 text-[#62C8DF] px-3 py-1 rounded-full text-xs font-semibold"
+          >
+            <Zap className="w-3 h-3 fill-[#62C8DF]" strokeWidth={0} />
+            {livePoints} pts
+          </Link>
+        )}
       </div>
 
       {/* Desktop Header */}
       <div className="hidden lg:block fixed top-0 left-64 right-0 bg-white border-b border-border z-30">
-        <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-[#1A1A2E]">{getCurrentPageTitle()}</h1>
+          {/* Points pill – desktop header */}
+          {livePoints !== null && (
+            <Link
+              href="/rewards"
+              className="flex items-center gap-1.5 bg-[#62C8DF]/10 hover:bg-[#62C8DF]/20 text-[#62C8DF] px-4 py-1.5 rounded-full text-sm font-semibold transition-colors"
+            >
+              <Zap className="w-4 h-4 fill-[#62C8DF]" strokeWidth={0} />
+              {livePoints} pts
+            </Link>
+          )}
         </div>
       </div>
 
@@ -93,20 +135,35 @@ export default function AppLayout({ children, user }: AppLayoutProps) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-white text-sm truncate">
-                {user?.name || "Marvel"}
+                {displayUser?.name || "Marvel"}
               </div>
               <div className="flex items-center gap-1 mt-1">
                 <div className="w-2 h-2 bg-[#55AA2F] rounded-full" />
-                <span className="text-white text-xs">{user?.plan || "Plan C"}</span>
+                <span className="text-white text-xs">{displayUser?.plan || "Plan C"}</span>
               </div>
             </div>
           </div>
           <div className="mt-1">
             <p className="text-sm text-white">
-              Course: <span className="text-[#5B8DB8]">{user?.course || "NEET PG"}</span>
+              Course: <span className="text-[#5B8DB8]">{displayUser?.course || "NEET PG"}</span>
             </p>
           </div>
         </Link>
+
+        {/* Points display in sidebar */}
+        {livePoints !== null && (
+          <Link
+            href="/rewards"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="mx-4 mt-3 flex items-center justify-between bg-[#062e38] hover:bg-[#062e38]/80 transition-colors rounded-lg px-4 py-3"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#62C8DF] fill-[#62C8DF]" strokeWidth={0} />
+              <span className="text-xs text-[#72A1AB]">Your Points</span>
+            </div>
+            <span className="text-[#62C8DF] font-bold text-sm">{livePoints}</span>
+          </Link>
+        )}
 
         {/* Divider */}
         <div className="h-px bg-[#3E5157] mx-6 my-4" />

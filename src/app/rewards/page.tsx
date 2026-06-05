@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Gift } from "lucide-react";
+import { Gift, History } from "lucide-react";
+import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
 
 const REWARDS = [
@@ -100,6 +101,17 @@ export default function RewardsPage() {
             <div className="text-sm text-[#666666] mb-1">Total Earned</div>
             <div className="text-3xl font-semibold text-[#62C8DF]">{totalEarned}</div>
           </div>
+        </div>
+
+        {/* View History Link */}
+        <div className="flex justify-end">
+          <Link
+            href="/rewards/history"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#62C8DF] hover:underline"
+          >
+            <History className="w-4 h-4" />
+            View History
+          </Link>
         </div>
 
         {/* Rewards Grid */}

@@ -1,17 +1,28 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { CheckCircle2, ArrowRight, Clock } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 function SuccessContent() {
-  const searchParams = useSearchParams();
-  const score = searchParams.get("score");
-  const status = searchParams.get("status");
-  
-  const numericScore = score ? parseInt(score, 10) : null;
-  // Auto-approved when score > 30; pending human review otherwise
-  const isApproved = status === "approved" || (numericScore !== null && numericScore > 30);
+  const [isApproved, setIsApproved] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/onboarding/status")
+      .then((r) => r.json())
+      .then((d) => {
+        const status = d.onboarding?.status;
+        setIsApproved(status === "APPROVED");
+      })
+      .catch(() => setIsApproved(false));
+  }, []);
+
+  if (isApproved === null) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-[#666666]">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6">
